@@ -26,5 +26,8 @@
   "bugs": {
     "url": "https://github.com/coot/purescript-argonaut-aeson-generic/issues"
   },
-  "homepage": "https://github.com/coot/purescript-argonaut-aeson-generic#readme"
+  "homepage": "https://github.com/coot/purescript-argonaut-aeson-generic#readme",
+  "devDependencies": {
+    "pulp": "^12.0.1"
+  }
 }
