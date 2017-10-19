@@ -3,13 +3,12 @@ module Test.Main where
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.AVar (AVAR)
 import Control.Monad.Eff.Console (CONSOLE, log)
-import Data.Argonaut (encodeJson)
+import Data.Argonaut (encodeJson, toObject, toString)
 import Data.Argonaut.Aeson.Decode.Generic (genericDecodeAeson)
 import Data.Argonaut.Aeson.Encode.Generic (genericEncodeAeson)
-import Data.Argonaut.Aeson.Options (Options(..), SumEncoding(..))
-import Data.Argonaut.Core (toObject)
+import Data.Argonaut.Aeson.Options (class IsAllNullary, Options(..), SumEncoding(..))
 import Data.Either (Either(..))
-import Data.Generic.Rep (class Generic)
+import Data.Generic.Rep (class Generic, from)
 import Data.Maybe (Maybe(..))
 import Data.StrMap as SM
 import Data.Tuple.Nested ((/\))
@@ -39,7 +38,25 @@ unsafeLog = log <<< unsafeCoerce
 
 opts :: Options
 opts = Options
-  { sumEncoding: TaggedObject { tagFieldName: "TAG", contentsFieldName: "CONTENTS" } }
+  { allNullaryToStringTag: true
+  , sumEncoding: TaggedObject { tagFieldName: "TAG", contentsFieldName: "CONTENTS" } }
+
+data X
+  = A
+  | B
+  | C
+derive instance genericX :: Generic X _
+
+isAllNullary :: forall a. IsAllNullary a => a -> Boolean
+isAllNullary _ = true
+
+x :: Boolean
+x = isAllNullary $ from A
+
+{--
+  - y :: Boolean
+  - y = isAllNullary $ from Nullary
+  --}
 
 main :: forall e. Eff (console :: CONSOLE, testOutput :: TESTOUTPUT, avar :: AVAR | e) Unit 
 main = runTest do
@@ -56,6 +73,11 @@ main = runTest do
     test "Record" do
       let o = toObject $ genericEncodeAeson opts (Rec {x: 1, y: 2})
       Assert.equal (Just $ SM.fromFoldable ["TAG" /\ encodeJson "Rec", "x" /\ encodeJson 1, "y" /\ encodeJson 2]) o
+
+  suite "allNullaryToStringTag" do
+    test "IsAllNullary type" do
+      let o = toString $ genericEncodeAeson opts A
+      Assert.equal (Just $ "A") o
 
   suite "Decode" do
     test "Nullary" do

@@ -17,10 +17,14 @@
     "purescript-generics-rep": "^5.3.0",
     "purescript-argonaut": "^3.1.0",
     "purescript-argonaut-codecs": "^3.2.0",
-    "purescript-argonaut-generic": "^1.2.0"
+    "purescript-argonaut-generic": "git://github.com/coot/purescript-argonaut-generic#record"
   },
   "devDependencies": {
     "purescript-psci-support": "^3.0.0",
-    "purescript-test-unit": "^13.0.0"
+    "purescript-test-unit": "^13.0.0",
+    "purescript-datetime": "git://github.com/coot/purescript-datetime#generic-rep"
+  },
+  "resolutions": {
+    "purescript-datetime": "generic-rep"
   }
 }

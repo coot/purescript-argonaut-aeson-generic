@@ -9,10 +9,9 @@ module Data.Argonaut.Aeson.Encode.Generic
 
 import Prelude
 
+import Data.Argonaut.Aeson.Options (class IsAllNullary, Options(Options), SumEncoding(..))
 import Data.Argonaut.Core (Json, JObject, fromArray, fromObject, fromString)
 import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
-import Data.Argonaut.Encode.Generic.Rep (class EncodeRepFields, encodeRepFields)
-import Data.Argonaut.Aeson.Options (Options(Options), SumEncoding(..))
 import Data.Array (cons, head, length, snoc)
 import Data.Generic.Rep as Rep
 import Data.Maybe (fromJust)
@@ -40,7 +39,28 @@ instance semigroupRepArgsEncoding :: Semigroup RepArgsEncoding where
   append (Rec a) (Arg b) = Arg (cons (fromObject a) b)
   append (Rec a) (Rec b) = Arg [fromObject a, fromObject b]
 
-instance encodeAesonConstructor :: (IsSymbol name, EncodeRepArgs a) => EncodeAeson (Rep.Constructor name a) where
+encodeAllNullaryAsString
+  :: forall a name
+   . IsAllNullary a
+  => IsSymbol name
+  => Options
+  -> Rep.Constructor name a
+  -> Json
+encodeAllNullaryAsString (Options { allNullaryToStringTag: true }) _
+  = fromString $ reflectSymbol (SProxy :: SProxy name)
+encodeAllNullaryAsString (Options { sumEncoding: TaggedObject r }) _
+  = fromObject $ SM.insert r.tagFieldName (fromString $ reflectSymbol (SProxy :: SProxy name)) SM.empty
+
+instance encodeAesonAllNullaryConstructor
+  :: ( IsSymbol name
+     , IsAllNullary a
+     , EncodeRepArgs a
+     ) => EncodeAeson (Rep.Constructor name a) where
+  encodeAeson o a = encodeAllNullaryAsString o a
+else instance encodeAesonConstructor
+  :: ( IsSymbol name
+     , EncodeRepArgs a
+     ) => EncodeAeson (Rep.Constructor name a) where
   encodeAeson (Options { sumEncoding: TaggedObject r }) (Rep.Constructor a) =
     let o :: JObject
         o = SM.insert r.tagFieldName (fromString (reflectSymbol (SProxy :: SProxy name))) SM.empty
@@ -65,9 +85,6 @@ instance encodeRepArgsProduct :: (EncodeRepArgs a, EncodeRepArgs b) => EncodeRep
 
 instance encodeRepArgsArgument :: (EncodeJson a) => EncodeRepArgs (Rep.Argument a) where
   encodeRepArgs (Rep.Argument a) = Arg [encodeJson a]
-
-instance encodeRepArgsRec :: (EncodeRepFields fields) => EncodeRepArgs (Rep.Rec fields) where
-  encodeRepArgs (Rep.Rec fields) = Rec $ encodeRepFields fields
 
 -- | Encode any `Generic` data structure into `Json` using `Aeson` encoding
 -- | (with `allNullaryToStringTag` set to `False`)
