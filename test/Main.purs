@@ -3,13 +3,12 @@ module Test.Main where
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.AVar (AVAR)
 import Control.Monad.Eff.Console (CONSOLE, log)
-import Data.Argonaut (encodeJson)
+import Data.Argonaut (encodeJson, toObject, toString)
 import Data.Argonaut.Aeson.Decode.Generic (genericDecodeAeson)
 import Data.Argonaut.Aeson.Encode.Generic (genericEncodeAeson)
-import Data.Argonaut.Aeson.Options (Options(..), SumEncoding(..))
-import Data.Argonaut.Core (toObject)
+import Data.Argonaut.Aeson.Options (class IsAllNullary, Options(..), SumEncoding(..))
 import Data.Either (Either(..))
-import Data.Generic.Rep (class Generic)
+import Data.Generic.Rep (class Generic, from)
 import Data.Maybe (Maybe(..))
 import Data.StrMap as SM
 import Data.Tuple.Nested ((/\))
@@ -38,8 +37,7 @@ unsafeLog :: forall a e. a -> Eff (console :: CONSOLE | e) Unit
 unsafeLog = log <<< unsafeCoerce
 
 opts :: Options
-opts = Options
-  { sumEncoding: TaggedObject { tagFieldName: "TAG", contentsFieldName: "CONTENTS" } }
+opts = Options { sumEncoding: TaggedObject { tagFieldName: "TAG", contentsFieldName: "CONTENTS" } }
 
 main :: forall e. Eff (console :: CONSOLE, testOutput :: TESTOUTPUT, avar :: AVAR | e) Unit 
 main = runTest do
