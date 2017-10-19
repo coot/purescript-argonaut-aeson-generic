@@ -1,0 +1,29 @@
+{
+  "name": "purescript-argonaut-generic-aeson",
+  "version": "0.1.0",
+  "description": "argonaut aeson generic json codecs",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "pulp test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/coot/purescript-argonaut-aeson-generic.git"
+  },
+  "keywords": [
+    "argonaut",
+    "aeson",
+    "generic",
+    "purescript",
+    "json"
+  ],
+  "author": "Marcin Szamotulski",
+  "license": "MPL-2.0",
+  "bugs": {
+    "url": "https://github.com/coot/purescript-argonaut-aeson-generic/issues"
+  },
+  "homepage": "https://github.com/coot/purescript-argonaut-aeson-generic#readme"
+}
