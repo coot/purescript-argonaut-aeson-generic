@@ -1,5 +1,10 @@
 {
   "name": "purescript-argonaut-aeson-generic",
+  "license": "MPL-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/coot/purescript-argonaut-aeson-generic"
+  },
   "ignore": [
     "**/.*",
     "node_modules",
