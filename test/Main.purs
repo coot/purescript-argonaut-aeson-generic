@@ -1,24 +1,20 @@
 module Test.Main where
 
-import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.AVar (AVAR)
-import Control.Monad.Eff.Console (CONSOLE, log)
+import Effect (Effect)
 import Data.Argonaut (encodeJson)
 import Data.Argonaut.Aeson.Decode.Generic (genericDecodeAeson)
 import Data.Argonaut.Aeson.Encode.Generic (genericEncodeAeson)
 import Data.Argonaut.Aeson.Options (Options(..), SumEncoding(..))
-import Data.Argonaut.Core (toObject)
+import Data.Argonaut.Core (Json, toObject, toString)
 import Data.Either (Either(..))
 import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe(..))
-import Data.StrMap as SM
+import Foreign.Object as FO
 import Data.Tuple.Nested ((/\))
-import Prelude (class Eq, class Show, Unit, discard, show, ($), (<<<), (<>))
+import Prelude (class Eq, class Show, Unit, discard, show, ($), (<>))
 import Test.Unit (suite, test)
 import Test.Unit.Assert as Assert
-import Test.Unit.Console (TESTOUTPUT)
 import Test.Unit.Main (runTest)
-import Unsafe.Coerce (unsafeCoerce)
 
 data D
   = Nullary
@@ -26,36 +22,41 @@ data D
   | Binary Int Int
   | Rec { x :: Int, y :: Int }
 
+
 derive instance eqD :: Eq D
 derive instance gD :: Generic D _
+
 instance showD :: Show D where
   show Nullary = "Nullary"
   show (Unary a) = "Unary " <> show a
   show (Binary a b) = "Binary " <> show a <> " " <> show b
   show (Rec a) = "Rec { x: " <> show a.x <> ", y: " <> show a.y <> "}"
 
-unsafeLog :: forall a e. a -> Eff (console :: CONSOLE | e) Unit
-unsafeLog = log <<< unsafeCoerce
-
 opts :: Options
 opts = Options
   { sumEncoding: TaggedObject { tagFieldName: "TAG", contentsFieldName: "CONTENTS" } }
 
-main :: forall e. Eff (console :: CONSOLE, testOutput :: TESTOUTPUT, avar :: AVAR | e) Unit 
+newtype ShowJson = ShowJson Json
+instance showJson :: Show ShowJson where
+  show (ShowJson json) = case toString json of
+    Nothing -> "Nothing"
+    Just str -> str
+
+main :: Effect Unit
 main = runTest do
   suite "Aeson encoding" do
     test "Nullary" do
-      let o = toObject $ genericEncodeAeson opts Nullary
-      Assert.equal (Just $ SM.fromFoldable ["TAG" /\ encodeJson "Nullary"]) o
+      let o = genericEncodeAeson opts Nullary
+      Assert.equal' (show $ ShowJson o) (Just $ FO.fromFoldable ["TAG" /\ encodeJson "Nullary"]) $ toObject o
     test "Unary" do
-      let o = toObject $ genericEncodeAeson opts (Unary 1)
-      Assert.equal (Just $ SM.fromFoldable ["TAG" /\ encodeJson "Unary", "CONTENTS" /\ encodeJson 1]) o
+      let o = genericEncodeAeson opts (Unary 1)
+      Assert.equal' (show $ ShowJson o) (Just $ FO.fromFoldable ["TAG" /\ encodeJson "Unary", "CONTENTS" /\ encodeJson 1]) $ toObject o
     test "Binary" do
-      let o = toObject $ genericEncodeAeson opts (Binary 1 2)
-      Assert.equal (Just $ SM.fromFoldable ["TAG" /\ encodeJson "Binary", "CONTENTS" /\ encodeJson [1, 2]]) o
+      let o = genericEncodeAeson opts (Binary 1 2)
+      Assert.equal' (show $ ShowJson o) (Just $ FO.fromFoldable ["TAG" /\ encodeJson "Binary", "CONTENTS" /\ encodeJson [1, 2]]) $ toObject o
     test "Record" do
-      let o = toObject $ genericEncodeAeson opts (Rec {x: 1, y: 2})
-      Assert.equal (Just $ SM.fromFoldable ["TAG" /\ encodeJson "Rec", "x" /\ encodeJson 1, "y" /\ encodeJson 2]) o
+      let o = genericEncodeAeson opts (Rec {x: 1, y: 2})
+      Assert.equal' (show $ ShowJson o) (Just $ FO.fromFoldable ["TAG" /\ encodeJson "Rec", "x" /\ encodeJson 1, "y" /\ encodeJson 2]) $ toObject o
 
   suite "Decode" do
     test "Nullary" do

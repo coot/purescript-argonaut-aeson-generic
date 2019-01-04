@@ -8,14 +8,14 @@ import Prelude
 
 import Control.Alt ((<|>))
 import Data.Argonaut.Aeson.Options (Options(Options), SumEncoding(..))
-import Data.Argonaut.Core (Json, foldJson, fromBoolean, fromNull, fromNumber, fromObject, fromString, toObject, toString)
+import Data.Argonaut.Core (Json, caseJson, fromBoolean, fromNumber, fromObject, fromString, jsonNull, toObject, toString)
 import Data.Argonaut.Decode.Generic.Rep (class DecodeRepArgs, decodeRepArgs)
 import Data.Array (singleton)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), note)
 import Data.Generic.Rep as Rep
 import Data.Maybe (Maybe(..))
-import Data.StrMap as SM
+import Foreign.Object as SM
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 
 class DecodeAeson r where
@@ -28,12 +28,12 @@ instance decodeAesonSum :: (DecodeAeson a, DecodeAeson b) => DecodeAeson (Rep.Su
   decodeAeson o j = Rep.Inl <$> decodeAeson o j <|> Rep.Inr <$> decodeAeson o j
 
 toJsonArray :: Json -> Array Json
-toJsonArray = foldJson
-  (singleton <<< fromNull)
+toJsonArray = caseJson
+  (const $ singleton jsonNull)
   (singleton <<< fromBoolean)
   (singleton <<< fromNumber)
   (singleton <<< fromString)
-  id
+  (\x -> x)
   (singleton <<< fromObject)
 
 instance decodeAesonConstructor :: (IsSymbol name, DecodeRepArgs a) => DecodeAeson (Rep.Constructor name a) where
