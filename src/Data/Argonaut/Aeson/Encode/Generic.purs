@@ -15,15 +15,15 @@ import Record (get)
 import Data.Argonaut.Aeson.Options (Options(Options), SumEncoding(..))
 import Data.Argonaut.Core (Json, fromArray, fromObject, fromString)
 import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
---import Data.Argonaut.Encode.Generic.Rep (class EncodeRepFields, encodeRepFields)
 import Data.Array (cons, head, length, snoc)
 import Data.Generic.Rep as Rep
 import Data.Maybe (fromJust)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 import Foreign.Object as FO
 import Partial.Unsafe (unsafePartial)
-import Type.Row (class Cons, class RowToList, Cons, Nil, RLProxy(..), kind RowList)
-
+import Type.Row (class Cons)
+import Type.RowList (class RowToList, Nil, Cons, RLProxy(..), kind RowList)
+    
 class EncodeAeson r where
   encodeAeson :: Options -> r -> Json
 
