@@ -1,6 +1,8 @@
 module Data.Argonaut.Aeson.Decode.Generic
   ( class DecodeAeson
+  , class DecodeAeson'
   , decodeAeson
+  , decodeAeson'
   , genericDecodeAeson
   ) where
 
@@ -21,11 +23,24 @@ import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 class DecodeAeson r where
   decodeAeson :: Options -> Json -> Either String r
 
+instance decodeAesonConstructor :: (IsSymbol name, DecodeRepArgs a) => DecodeAeson (Rep.Constructor name a) where
+  decodeAeson _ j = do
+    let name = reflectSymbol (SProxy :: SProxy name)
+    let decodingErr msg = "When decoding a " <> name <> ": " <> msg
+    {init, rest} <- let values = toJsonArray j in lmap decodingErr $ decodeRepArgs values
+    pure $ Rep.Constructor init
+else
 instance decodeAesonNoConstructors :: DecodeAeson Rep.NoConstructors where
   decodeAeson _ _ = Left "Cannot decode empty data type"
+else
+instance decodeAesonAny :: DecodeAeson' r => DecodeAeson r where
+  decodeAeson = decodeAeson'
 
-instance decodeAesonSum :: (DecodeAeson a, DecodeAeson b) => DecodeAeson (Rep.Sum a b) where
-  decodeAeson o j = Rep.Inl <$> decodeAeson o j <|> Rep.Inr <$> decodeAeson o j
+class DecodeAeson' r where
+  decodeAeson' :: Options -> Json -> Either String r
+
+instance decodeAesonSum' :: (DecodeAeson' a, DecodeAeson' b) => DecodeAeson' (Rep.Sum a b) where
+  decodeAeson' o j = Rep.Inl <$> decodeAeson' o j <|> Rep.Inr <$> decodeAeson' o j
 
 toJsonArray :: Json -> Array Json
 toJsonArray = caseJson
@@ -36,8 +51,8 @@ toJsonArray = caseJson
   (\x -> x)
   (singleton <<< fromObject)
 
-instance decodeAesonConstructor :: (IsSymbol name, DecodeRepArgs a) => DecodeAeson (Rep.Constructor name a) where
-  decodeAeson (Options { sumEncoding: TaggedObject r }) j = do
+instance decodeAesonConstructor' :: (IsSymbol name, DecodeRepArgs a) => DecodeAeson' (Rep.Constructor name a) where
+  decodeAeson' (Options { sumEncoding: TaggedObject r }) j = do
     let name = reflectSymbol (SProxy :: SProxy name)
     let decodingErr msg = "When decoding a " <> name <> ": " <> msg
     jObj <- note (decodingErr "expected an object") (toObject j)
