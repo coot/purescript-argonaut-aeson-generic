@@ -24,11 +24,14 @@ class DecodeAeson r where
   decodeAeson :: Options -> Json -> Either String r
 
 instance decodeAesonConstructor :: (IsSymbol name, DecodeRepArgs a) => DecodeAeson (Rep.Constructor name a) where
-  decodeAeson _ j = do
-    let name = reflectSymbol (SProxy :: SProxy name)
-    let decodingErr msg = "When decoding a " <> name <> ": " <> msg
-    {init, rest} <- let values = toJsonArray j in lmap decodingErr $ decodeRepArgs values
-    pure $ Rep.Constructor init
+  decodeAeson (Options options) j =
+    if options.tagSingleConstructors
+    then decodeAeson' (Options options) j
+    else do
+      let name = reflectSymbol (SProxy :: SProxy name)
+      let decodingErr msg = "When decoding a " <> name <> ": " <> msg
+      {init, rest} <- let values = toJsonArray j in lmap decodingErr $ decodeRepArgs values
+      pure $ Rep.Constructor init
 else
 instance decodeAesonNoConstructors :: DecodeAeson Rep.NoConstructors where
   decodeAeson _ _ = Left "Cannot decode empty data type"

@@ -29,10 +29,13 @@ import Type.RowList (class RowToList, Nil, Cons, RLProxy(..), kind RowList)
 class EncodeAeson r where
   encodeAeson :: Options -> r -> Json
 
-instance encodeAesonSingleConstructor :: EncodeRepArgs a => EncodeAeson (Rep.Constructor name a) where
-  encodeAeson _ (Rep.Constructor a) = fromObject case encodeRepArgs a of
-    Rec o -> o
-    Arg _ -> FO.empty  -- Not implemented.
+instance encodeAesonSingleConstructor :: (EncodeRepArgs a, IsSymbol name) => EncodeAeson (Rep.Constructor name a) where
+  encodeAeson (Options options) (Rep.Constructor a) =
+    if options.tagSingleConstructors
+    then (encodeAeson' (Options options) :: (Rep.Constructor name a -> Json)) (Rep.Constructor a)
+    else fromObject case encodeRepArgs a of
+      Rec o -> o
+      Arg _ -> FO.empty  -- Not implemented.
 else
 instance encodeAesonAny :: EncodeAeson' r => EncodeAeson r where
   encodeAeson = encodeAeson'

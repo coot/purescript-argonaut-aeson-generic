@@ -41,7 +41,11 @@ instance showSC :: Show SC where
 
 opts :: Options
 opts = Options
-  { sumEncoding: TaggedObject { tagFieldName: "TAG", contentsFieldName: "CONTENTS" } }
+  { sumEncoding: TaggedObject { tagFieldName: "TAG", contentsFieldName: "CONTENTS" }, tagSingleConstructors: false }
+
+optsWithTagSingleConstructors :: Options
+optsWithTagSingleConstructors = Options
+  { sumEncoding: TaggedObject { tagFieldName: "TAG", contentsFieldName: "CONTENTS" }, tagSingleConstructors: true }
 
 newtype ShowJson = ShowJson Json
 instance showJson :: Show ShowJson where
@@ -65,6 +69,10 @@ main = runTest do
     test "Single constructor" do
       let o = genericEncodeAeson opts (SC {x: 1, y: 2})
       Assert.equal' (show $ ShowJson o) (Just $ FO.fromFoldable ["x" /\ encodeJson 1, "y" /\ encodeJson 2]) $ toObject o
+    test "Tagged single constructor" do
+      let o = genericEncodeAeson (optsWithTagSingleConstructors) (SC {x: 1, y: 2})
+          o' = Just $ FO.fromFoldable ["TAG" /\ encodeJson "SC", "x" /\ encodeJson 1, "y" /\ encodeJson 2]
+      Assert.equal' (show $ ShowJson o) o' $ toObject o
 
   suite "Decode" do
     test "Nullary" do
@@ -82,3 +90,6 @@ main = runTest do
     test "Single constructor" do
       let o = fromObject $ FO.fromFoldable ["x" /\ encodeJson 1, "y" /\ encodeJson 2]
       Assert.equal (Right (SC {x: 1, y: 2})) (genericDecodeAeson opts o)
+    test "Tagged single constructor" do
+      let o = fromObject $ FO.fromFoldable ["TAG" /\ encodeJson "SC", "x" /\ encodeJson 1, "y" /\ encodeJson 2]
+      Assert.equal (Right (SC {x: 1, y: 2})) (genericDecodeAeson optsWithTagSingleConstructors o)
