@@ -29,6 +29,15 @@ import Type.RowList (class RowToList, Nil, Cons, RLProxy(..), kind RowList)
 class EncodeAeson r where
   encodeAeson :: Options -> r -> Json
 
+instance encodeAesonInt :: EncodeAeson' Int => EncodeAeson Int where
+  encodeAeson o r = encodeAeson' o r
+
+instance encodeAesonNoConstructors :: EncodeAeson' Rep.NoConstructors => EncodeAeson Rep.NoConstructors where
+  encodeAeson o r = encodeAeson' o r
+
+instance encodeAesonSum :: EncodeAeson' (Rep.Sum a b) => EncodeAeson (Rep.Sum a b) where
+  encodeAeson o r = encodeAeson' o r
+
 instance encodeAesonSingleConstructor :: (EncodeRepArgs a, IsSymbol name) => EncodeAeson (Rep.Constructor name a) where
   encodeAeson (Options options) (Rep.Constructor a) =
     if options.tagSingleConstructors
@@ -36,21 +45,17 @@ instance encodeAesonSingleConstructor :: (EncodeRepArgs a, IsSymbol name) => Enc
     else fromObject case encodeRepArgs a of
       Rec o -> o
       Arg _ -> FO.empty  -- Not implemented.
-else
-instance encodeAesonAny :: EncodeAeson' r => EncodeAeson r where
-  encodeAeson = encodeAeson'
 
 class EncodeAeson' r where
   encodeAeson' :: Options -> r -> Json
 
-
-instance encodeAesonInt :: EncodeAeson' Int where
+instance encodeAesonInt' :: EncodeAeson' Int where
   encodeAeson' _ = encodeJson
 
-instance encodeAesonNoConstructors :: EncodeAeson' Rep.NoConstructors where
+instance encodeAesonNoConstructors' :: EncodeAeson' Rep.NoConstructors where
   encodeAeson' o r = encodeAeson' o r
 
-instance encodeAesonSum :: (EncodeAeson' a, EncodeAeson' b) => EncodeAeson' (Rep.Sum a b) where
+instance encodeAesonSum' :: (EncodeAeson' a, EncodeAeson' b) => EncodeAeson' (Rep.Sum a b) where
   encodeAeson' o (Rep.Inl a) = encodeAeson' o a
   encodeAeson' o (Rep.Inr b) = encodeAeson' o b
 
