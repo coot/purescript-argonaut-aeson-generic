@@ -1,10 +1,12 @@
 module Data.Argonaut.Aeson.Encode.Generic
   ( class EncodeAeson
+  , class EncodeAeson'
   , class EncodeRepArgs
   , RepArgsEncoding(..)
   , class EncodeRepFields
   , encodeFields
   , encodeAeson
+  , encodeAeson'
   , encodeRepArgs
   , genericEncodeAeson
   ) where
@@ -27,16 +29,35 @@ import Type.RowList (class RowToList, Nil, Cons, RLProxy(..), kind RowList)
 class EncodeAeson r where
   encodeAeson :: Options -> r -> Json
 
+instance encodeAesonInt :: EncodeAeson' Int => EncodeAeson Int where
+  encodeAeson o r = encodeAeson' o r
 
-instance encodeAesonInt :: EncodeAeson Int where
-  encodeAeson _ = encodeJson
+instance encodeAesonNoConstructors :: EncodeAeson' Rep.NoConstructors => EncodeAeson Rep.NoConstructors where
+  encodeAeson o r = encodeAeson' o r
 
-instance encodeAesonNoConstructors :: EncodeAeson Rep.NoConstructors where
-  encodeAeson o r = encodeAeson o r
+instance encodeAesonSum :: EncodeAeson' (Rep.Sum a b) => EncodeAeson (Rep.Sum a b) where
+  encodeAeson o r = encodeAeson' o r
 
-instance encodeAesonSum :: (EncodeAeson a, EncodeAeson b) => EncodeAeson (Rep.Sum a b) where
-  encodeAeson o (Rep.Inl a) = encodeAeson o a
-  encodeAeson o (Rep.Inr b) = encodeAeson o b
+instance encodeAesonSingleConstructor :: (EncodeRepArgs a, IsSymbol name) => EncodeAeson (Rep.Constructor name a) where
+  encodeAeson (Options options) (Rep.Constructor a) =
+    if options.tagSingleConstructors
+    then (encodeAeson' (Options options) :: (Rep.Constructor name a -> Json)) (Rep.Constructor a)
+    else fromObject case encodeRepArgs a of
+      Rec o -> o
+      Arg _ -> FO.empty  -- Not implemented.
+
+class EncodeAeson' r where
+  encodeAeson' :: Options -> r -> Json
+
+instance encodeAesonInt' :: EncodeAeson' Int where
+  encodeAeson' _ = encodeJson
+
+instance encodeAesonNoConstructors' :: EncodeAeson' Rep.NoConstructors where
+  encodeAeson' o r = encodeAeson' o r
+
+instance encodeAesonSum' :: (EncodeAeson' a, EncodeAeson' b) => EncodeAeson' (Rep.Sum a b) where
+  encodeAeson' o (Rep.Inl a) = encodeAeson' o a
+  encodeAeson' o (Rep.Inr b) = encodeAeson' o b
 
 data RepArgsEncoding
   = Arg (Array Json)
@@ -48,8 +69,8 @@ instance semigroupRepArgsEncoding :: Semigroup RepArgsEncoding where
   append (Rec a) (Arg b) = Arg (cons (fromObject a) b)
   append (Rec a) (Rec b) = Arg [fromObject a, fromObject b]
 
-instance encodeAesonConstructor :: (IsSymbol name, EncodeRepArgs a) => EncodeAeson (Rep.Constructor name a) where
-  encodeAeson (Options { sumEncoding: TaggedObject r }) (Rep.Constructor a) =
+instance encodeAesonConstructor :: (IsSymbol name, EncodeRepArgs a) => EncodeAeson' (Rep.Constructor name a) where
+  encodeAeson' (Options { sumEncoding: TaggedObject r }) (Rep.Constructor a) =
     let o :: FO.Object Json
         o = FO.insert r.tagFieldName (fromString (reflectSymbol (SProxy :: SProxy name))) FO.empty
     in fromObject case encodeRepArgs a of

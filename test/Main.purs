@@ -5,7 +5,7 @@ import Data.Argonaut (encodeJson)
 import Data.Argonaut.Aeson.Decode.Generic (genericDecodeAeson)
 import Data.Argonaut.Aeson.Encode.Generic (genericEncodeAeson)
 import Data.Argonaut.Aeson.Options (Options(..), SumEncoding(..))
-import Data.Argonaut.Core (Json, toObject, toString)
+import Data.Argonaut.Core (Json, fromObject, toObject, stringify)
 import Data.Either (Either(..))
 import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe(..))
@@ -22,7 +22,6 @@ data D
   | Binary Int Int
   | Rec { x :: Int, y :: Int }
 
-
 derive instance eqD :: Eq D
 derive instance gD :: Generic D _
 
@@ -32,15 +31,25 @@ instance showD :: Show D where
   show (Binary a b) = "Binary " <> show a <> " " <> show b
   show (Rec a) = "Rec { x: " <> show a.x <> ", y: " <> show a.y <> "}"
 
+newtype SC = SC { x :: Int, y :: Int }
+
+derive instance eqSC :: Eq SC
+derive instance gSC :: Generic SC _
+
+instance showSC :: Show SC where
+  show (SC a) = "SC { x: " <> show a.x <> ", y: " <> show a.y <> " }"
+
 opts :: Options
 opts = Options
-  { sumEncoding: TaggedObject { tagFieldName: "TAG", contentsFieldName: "CONTENTS" } }
+  { sumEncoding: TaggedObject { tagFieldName: "TAG", contentsFieldName: "CONTENTS" }, tagSingleConstructors: false }
+
+optsWithTagSingleConstructors :: Options
+optsWithTagSingleConstructors = Options
+  { sumEncoding: TaggedObject { tagFieldName: "TAG", contentsFieldName: "CONTENTS" }, tagSingleConstructors: true }
 
 newtype ShowJson = ShowJson Json
 instance showJson :: Show ShowJson where
-  show (ShowJson json) = case toString json of
-    Nothing -> "Nothing"
-    Just str -> str
+  show (ShowJson json) = stringify json
 
 main :: Effect Unit
 main = runTest do
@@ -57,6 +66,13 @@ main = runTest do
     test "Record" do
       let o = genericEncodeAeson opts (Rec {x: 1, y: 2})
       Assert.equal' (show $ ShowJson o) (Just $ FO.fromFoldable ["TAG" /\ encodeJson "Rec", "x" /\ encodeJson 1, "y" /\ encodeJson 2]) $ toObject o
+    test "Single constructor" do
+      let o = genericEncodeAeson opts (SC {x: 1, y: 2})
+      Assert.equal' (show $ ShowJson o) (Just $ FO.fromFoldable ["x" /\ encodeJson 1, "y" /\ encodeJson 2]) $ toObject o
+    test "Tagged single constructor" do
+      let o = genericEncodeAeson (optsWithTagSingleConstructors) (SC {x: 1, y: 2})
+          o' = Just $ FO.fromFoldable ["TAG" /\ encodeJson "SC", "x" /\ encodeJson 1, "y" /\ encodeJson 2]
+      Assert.equal' (show $ ShowJson o) o' $ toObject o
 
   suite "Decode" do
     test "Nullary" do
@@ -71,3 +87,9 @@ main = runTest do
     test "Record" do
       let o = genericEncodeAeson opts (Rec {x: 1, y: 2})
       Assert.equal (Right (Rec {x: 1, y: 2})) (genericDecodeAeson opts o)
+    test "Single constructor" do
+      let o = fromObject $ FO.fromFoldable ["x" /\ encodeJson 1, "y" /\ encodeJson 2]
+      Assert.equal (Right (SC {x: 1, y: 2})) (genericDecodeAeson opts o)
+    test "Tagged single constructor" do
+      let o = fromObject $ FO.fromFoldable ["TAG" /\ encodeJson "SC", "x" /\ encodeJson 1, "y" /\ encodeJson 2]
+      Assert.equal (Right (SC {x: 1, y: 2})) (genericDecodeAeson optsWithTagSingleConstructors o)

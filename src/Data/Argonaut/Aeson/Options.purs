@@ -7,7 +7,7 @@ module Data.Argonaut.Aeson.Options
 data SumEncoding
   = TaggedObject { tagFieldName :: String, contentsFieldName :: String }
 
-newtype Options = Options { sumEncoding :: SumEncoding }
+newtype Options = Options { sumEncoding :: SumEncoding, tagSingleConstructors ∷ Boolean }
 
 defaultOptions :: Options
-defaultOptions = Options { sumEncoding: TaggedObject { tagFieldName: "tag", contentsFieldName: "contents" } }
+defaultOptions = Options { sumEncoding: TaggedObject { tagFieldName: "tag", contentsFieldName: "contents" }, tagSingleConstructors: false }
