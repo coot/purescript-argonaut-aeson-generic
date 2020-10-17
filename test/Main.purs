@@ -41,11 +41,17 @@ instance showSC :: Show SC where
 
 opts :: Options
 opts = Options
-  { sumEncoding: TaggedObject { tagFieldName: "TAG", contentsFieldName: "CONTENTS" }, tagSingleConstructors: false }
+  { sumEncoding: TaggedObject { tagFieldName: "TAG", contentsFieldName: "CONTENTS" }
+  , tagSingleConstructors: false
+  , allNullaryToStringTag: true
+  }
 
 optsWithTagSingleConstructors :: Options
 optsWithTagSingleConstructors = Options
-  { sumEncoding: TaggedObject { tagFieldName: "TAG", contentsFieldName: "CONTENTS" }, tagSingleConstructors: true }
+  { sumEncoding: TaggedObject { tagFieldName: "TAG", contentsFieldName: "CONTENTS" }
+  , tagSingleConstructors: true
+  , allNullaryToStringTag: true
+  }
 
 newtype ShowJson = ShowJson Json
 instance showJson :: Show ShowJson where
