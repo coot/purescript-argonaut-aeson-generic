@@ -175,6 +175,5 @@ instance encodeRepFieldsNil ∷ EncodeRepFields Nil row where
   encodeFields _ _ = FO.empty
   
 -- | Encode any `Generic` data structure into `Json` using `Aeson` encoding
--- | (with `allNullaryToStringTag` set to `False`)
 genericEncodeAeson :: forall a r. Rep.Generic a r => EncodeAeson r => Options -> a -> Json
 genericEncodeAeson o = encodeAeson o <<< Rep.from
