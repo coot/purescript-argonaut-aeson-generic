@@ -3,7 +3,7 @@ module Test.Main where
 import Effect (Effect)
 import Data.Argonaut (encodeJson)
 import Data.Argonaut.Aeson.Decode.Generic (genericDecodeAeson, class DecodeAeson)
-import Data.Argonaut.Aeson.Encode.Generic (genericEncodeAeson)
+import Data.Argonaut.Aeson.Encode.Generic (genericEncodeAeson, class EncodeAeson)
 import Data.Argonaut.Aeson.Options (Options(..), SumEncoding(..), defaultOptions)
 import Data.Argonaut.Core (Json, fromObject, toObject, stringify)
 import Data.Argonaut.Parser (jsonParser)
@@ -14,7 +14,7 @@ import Data.Generic.Rep.Show (genericShow)
 import Data.Maybe (Maybe(..))
 import Foreign.Object as FO
 import Data.Tuple.Nested ((/\))
-import Prelude (class Eq, class Show, Unit, discard, show, map, ($), (<>), (+), (<<<), (<=<))
+import Prelude (class Eq, class Show, Unit, discard, show, map, ($), (<>), (<<<), (<=<))
 import Test.Unit (suite, test, TestSuite)
 import Test.Unit.Assert as Assert
 import Test.Unit.Main (runTest)
@@ -89,6 +89,12 @@ checkAesonCompatibility value canonicalEncoding options =
 
 checkManyWithOptions :: Options -> Array (Options -> TestSuite) -> TestSuite
 checkManyWithOptions options testCaseConstructors = suite (show options) (traverse_ (_$ options) testCaseConstructors)
+
+checkInvertibility :: forall a rep. Eq a => Show a => Generic a rep => EncodeAeson rep => DecodeAeson rep => a -> Options -> TestSuite
+checkInvertibility value options =
+  let encoding = (stringify <<< genericEncodeAeson options) value
+      hopefullyDecodedValue = (genericDecodeAeson options <=< jsonParser) encoding
+  in test (show value <> " as " <> encoding) do Assert.equal (Right value) hopefullyDecodedValue
 
 data SingleNullary = SingleNullary
 derive instance generic_SingleNullary :: Generic SingleNullary _
@@ -220,3 +226,24 @@ main = runTest do
       , checkAesonCompatibility (VarietyUnary 1) "{\"tag\":\"VarietyUnary\",\"contents\":1}"
       , checkAesonCompatibility (VarietyBinary 1 2) "{\"tag\":\"VarietyBinary\",\"contents\":[1,2]}"
       ]
+  suite "Invertibility"
+    let examples =
+          [ checkInvertibility SingleNullary
+          , checkInvertibility (SingleUnary 1)
+          , checkInvertibility (SingleBinary 1 2)
+          , checkInvertibility (RecordUnary {recordUnaryField1: 1})
+          , checkInvertibility (RecordBinary {recordBinaryField1: 1, recordBinaryField2: 2})
+          , checkInvertibility Enumeration1
+          , checkInvertibility Enumeration2
+          , checkInvertibility Enumeration3
+          , checkInvertibility VarietyNullary
+          , checkInvertibility (VarietyUnary 1)
+          , checkInvertibility (VarietyBinary 1 2)
+          ]
+        options =
+          [ defaultOptions
+          , defaultOptionsWithNoAllNullaryToStringTag
+          , defaultOptionsWithTagSingleConstructors
+          , defaultOptionsWithTagSingleConstructorsAndNoAllNullaryToStringTag
+          ]
+    in do traverse_ (_ $ examples) (map checkManyWithOptions options)
