@@ -11,18 +11,20 @@ module Data.Argonaut.Aeson.Encode.Generic
   , genericEncodeAeson
   ) where
 
-import Prelude
+import Prelude (class Semigroup, otherwise, ($), (<<<), (<>), (==))
 
 import Record (get)
 import Data.Argonaut.Aeson.Options (Options(Options), SumEncoding(..))
-import Data.Argonaut.Core (Json, fromArray, fromObject, fromString)
+import Data.Argonaut.Aeson.Helpers (class AreAllConstructorsNullary, class IsSingleConstructor, Mode(..), areAllConstructorsNullary, isSingleConstructor)
+import Data.Argonaut.Core (Json, fromArray, fromObject, fromString, jsonEmptyArray)
 import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
-import Data.Array (cons, head, length, snoc)
+import Data.Array (cons, uncons, head, length, snoc)
 import Data.Generic.Rep as Rep
-import Data.Maybe (fromJust)
+import Data.Maybe (Maybe(..), fromJust)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 import Foreign.Object as FO
 import Partial.Unsafe (unsafePartial)
+import Type.Proxy (Proxy(..))
 import Type.Row (class Cons)
 import Type.RowList (class RowToList, Nil, Cons, RLProxy(..), kind RowList)
     
@@ -30,34 +32,60 @@ class EncodeAeson r where
   encodeAeson :: Options -> r -> Json
 
 instance encodeAesonInt :: EncodeAeson' Int => EncodeAeson Int where
-  encodeAeson o r = encodeAeson' o r
+  encodeAeson = encodeAeson' mode
+    where
+      mode = Mode
+        { _Mode_ConstructorIsSingle: false
+        , _Mode_ConstructorsAreAllNullary: false
+        }
 
 instance encodeAesonNoConstructors :: EncodeAeson' Rep.NoConstructors => EncodeAeson Rep.NoConstructors where
-  encodeAeson o r = encodeAeson' o r
+  encodeAeson = encodeAeson' mode
+    where
+      mode = Mode
+        { _Mode_ConstructorIsSingle: false
+        , _Mode_ConstructorsAreAllNullary: false
+        }
 
-instance encodeAesonSum :: EncodeAeson' (Rep.Sum a b) => EncodeAeson (Rep.Sum a b) where
-  encodeAeson o r = encodeAeson' o r
+instance encodeAesonConstructor
+  :: ( EncodeRepArgs a
+     , IsSymbol name
+     , AreAllConstructorsNullary (Rep.Constructor name a)
+     , IsSingleConstructor (Rep.Constructor name a)
+     )
+  => EncodeAeson (Rep.Constructor name a) where
+  encodeAeson o thing = encodeAeson' mode o thing
+    where
+      mode = Mode
+        { _Mode_ConstructorIsSingle: isSingleConstructor (Proxy :: Proxy (Rep.Constructor name a))
+        , _Mode_ConstructorsAreAllNullary: areAllConstructorsNullary (Proxy :: Proxy (Rep.Constructor name a))
+        }
 
-instance encodeAesonSingleConstructor :: (EncodeRepArgs a, IsSymbol name) => EncodeAeson (Rep.Constructor name a) where
-  encodeAeson (Options options) (Rep.Constructor a) =
-    if options.tagSingleConstructors
-    then (encodeAeson' (Options options) :: (Rep.Constructor name a -> Json)) (Rep.Constructor a)
-    else fromObject case encodeRepArgs a of
-      Rec o -> o
-      Arg _ -> FO.empty  -- Not implemented.
+instance encodeAesonSum
+  :: ( EncodeAeson' (Rep.Sum a b)
+     , AreAllConstructorsNullary (Rep.Sum a b)
+     , IsSingleConstructor (Rep.Sum a b)
+     )
+  => EncodeAeson (Rep.Sum a b) where
+  encodeAeson o thing = encodeAeson' mode o thing
+    where
+      mode = Mode
+        { _Mode_ConstructorIsSingle: isSingleConstructor (Proxy :: Proxy (Rep.Sum a b))
+        , _Mode_ConstructorsAreAllNullary: areAllConstructorsNullary (Proxy :: Proxy (Rep.Sum a b))
+        }
 
 class EncodeAeson' r where
-  encodeAeson' :: Options -> r -> Json
+  encodeAeson' :: Mode -> Options -> r -> Json
 
 instance encodeAesonInt' :: EncodeAeson' Int where
-  encodeAeson' _ = encodeJson
+  encodeAeson' _ _ = encodeJson
 
 instance encodeAesonNoConstructors' :: EncodeAeson' Rep.NoConstructors where
-  encodeAeson' o r = encodeAeson' o r
+  encodeAeson' x = encodeAeson' x
 
 instance encodeAesonSum' :: (EncodeAeson' a, EncodeAeson' b) => EncodeAeson' (Rep.Sum a b) where
-  encodeAeson' o (Rep.Inl a) = encodeAeson' o a
-  encodeAeson' o (Rep.Inr b) = encodeAeson' o b
+  encodeAeson' o mode (Rep.Inl a) = encodeAeson' o mode a
+  encodeAeson' o mode (Rep.Inr b) = encodeAeson' o mode b
 
 data RepArgsEncoding
   = Arg (Array Json)
@@ -69,19 +97,41 @@ instance semigroupRepArgsEncoding :: Semigroup RepArgsEncoding where
   append (Rec a) (Arg b) = Arg (cons (fromObject a) b)
   append (Rec a) (Rec b) = Arg [fromObject a, fromObject b]
 
-instance encodeAesonConstructor :: (IsSymbol name, EncodeRepArgs a) => EncodeAeson' (Rep.Constructor name a) where
-  encodeAeson' (Options { sumEncoding: TaggedObject r }) (Rep.Constructor a) =
-    let o :: FO.Object Json
-        o = FO.insert r.tagFieldName (fromString (reflectSymbol (SProxy :: SProxy name))) FO.empty
-    in fromObject case encodeRepArgs a of
-          Rec o' -> o `FO.union` o'
-          Arg js
-            | length js == 0
-            -> o
-            | length js == 1
-            -> FO.insert r.contentsFieldName (unsafePartial fromJust $ head js) o
-            | otherwise
-            -> FO.insert r.contentsFieldName (fromArray js) o
+instance encodeAesonConstructor' :: (IsSymbol name, EncodeRepArgs a) => EncodeAeson' (Rep.Constructor name a) where
+  encodeAeson' mode options (Rep.Constructor arguments)  =
+    let name = reflectSymbol (SProxy :: SProxy name)
+    in case {mode: mode, options: options} of
+
+      { mode: Mode {_Mode_ConstructorIsSingle: true, _Mode_ConstructorsAreAllNullary: true}
+      , options: Options {tagSingleConstructors: false, allNullaryToStringTag: true}
+      } -> jsonEmptyArray
+
+      { mode: Mode {_Mode_ConstructorsAreAllNullary: true}
+      , options: Options {allNullaryToStringTag: true}
+      } -> encodeJson name
+
+      { mode: Mode {_Mode_ConstructorIsSingle: true}
+      , options: Options {tagSingleConstructors: false}
+      } -> case encodeRepArgs arguments of
+        Rec foreignObject -> fromObject foreignObject
+        Arg xs -> case uncons xs of
+          Nothing -> jsonEmptyArray
+          Just {head: x, tail: ys} -> case uncons ys of
+            Nothing -> x
+            Just {head: y, tail: zs} -> fromArray ([x, y] <> zs)
+
+      {options: Options {sumEncoding: TaggedObject taggedObject}} ->
+        let o :: FO.Object Json
+            o = FO.insert taggedObject.tagFieldName (fromString (reflectSymbol (SProxy :: SProxy name))) FO.empty
+        in fromObject case encodeRepArgs arguments of
+              Rec o' -> o `FO.union` o'
+              Arg js
+                | length js == 0
+                -> o
+                | length js == 1
+                -> FO.insert taggedObject.contentsFieldName (unsafePartial fromJust $ head js) o
+                | otherwise
+                -> FO.insert taggedObject.contentsFieldName (fromArray js) o
 
 class EncodeRepArgs r where
   encodeRepArgs :: r -> RepArgsEncoding
