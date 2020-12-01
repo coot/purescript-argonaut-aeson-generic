@@ -3,7 +3,7 @@
   "license": "MPL-2.0",
   "repository": {
     "type": "git",
-    "url": "git://github.com/coot/purescript-argonaut-aeson-generic"
+    "url": "https://github.com/coot/purescript-argonaut-aeson-generic.git"
   },
   "ignore": [
     "**/.*",
