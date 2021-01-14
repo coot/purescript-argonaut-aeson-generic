@@ -6,21 +6,22 @@ module Data.Argonaut.Aeson.Decode.Generic
   , genericDecodeAeson
   ) where
 
-import Prelude (bind, const, discard, map, pure, show, when, ($), (/=), (<$>), (<<<), (<>), (==))
+import Prelude (Unit, bind, const, discard, identity, map, pure, show, unit, ($), (/=), (<$>), (<<<), (<>), (==), (>=>))
 
 import Control.Alt ((<|>))
 import Data.Argonaut.Aeson.Helpers (class AreAllConstructorsNullary, class IsSingleConstructor, Mode(..), areAllConstructorsNullary, isSingleConstructor)
 import Data.Argonaut.Aeson.Options (Options(Options), SumEncoding(..))
-import Data.Argonaut.Core (Json, caseJson, caseJsonArray, caseJsonString, fromBoolean, fromNumber, fromObject, fromString, jsonNull, toObject, toString)
+import Data.Argonaut.Core (Json, caseJson, caseJsonArray, caseJsonString, fromArray, fromBoolean, fromNumber, fromObject, fromString, jsonNull, toObject, toString)
 import Data.Argonaut.Decode.Generic.Rep (class DecodeRepArgs, decodeRepArgs)
 import Data.Array (singleton)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), note)
 import Data.Generic.Rep as Rep
 import Data.Maybe (Maybe(..))
-import Foreign.Object as SM
+import Foreign.Object as Foreign
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 import Type.Proxy (Proxy(..))
+import Partial.Unsafe
 
 class DecodeAeson r where
   decodeAeson :: Options -> Json -> Either String r
@@ -33,6 +34,7 @@ instance decodeAesonConstructor
      , IsSymbol name
      , AreAllConstructorsNullary (Rep.Constructor name a)
      , IsSingleConstructor (Rep.Constructor name a)
+     , DecodeAeson' (Rep.Constructor name a)
      )
   => DecodeAeson (Rep.Constructor name a) where
   decodeAeson o thing = decodeAeson' mode o thing
@@ -70,55 +72,100 @@ toJsonArray = caseJson
   (singleton <<< fromBoolean)
   (singleton <<< fromNumber)
   (singleton <<< fromString)
-  (\x -> x)
+  (singleton <<< fromArray)
   (singleton <<< fromObject)
 
-instance decodeAesonConstructor' :: (IsSymbol name, DecodeRepArgs a) => DecodeAeson' (Rep.Constructor name a) where
+toJsonArrayProduct :: Json -> Array Json
+toJsonArrayProduct = caseJson
+  (const $ singleton jsonNull)
+  (singleton <<< fromBoolean)
+  (singleton <<< fromNumber)
+  (singleton <<< fromString)
+  identity
+  (singleton <<< fromObject)
+
+decodingErr :: String -> String -> String
+decodingErr name msg = "When decoding a " <> name <> ": " <> msg
+
+checkTag :: String -> String -> Foreign.Object Json -> Either String Unit
+checkTag tagFieldName expectedTag
+  = note (show tagFieldName <> " property is missing") <<< Foreign.lookup tagFieldName
+ >=> note (show tagFieldName <> " property is not a string") <<< toString
+ >=> \ actualTag -> if actualTag /= expectedTag then Left "'tag' property has an incorrect value" else Right unit
+
+instance decodeAesonConstructorNoArguments' :: IsSymbol name => DecodeAeson' (Rep.Constructor name (Rep.NoArguments)) where
   decodeAeson' mode options json =
     let name = reflectSymbol (SProxy :: SProxy name)
-        decodingErr msg = "When decoding a " <> name <> ": " <> msg
-    in case {mode: mode, options: options} of
+    in lmap (decodingErr name) case {mode: mode, options: options} of
 
-        { mode: Mode {_Mode_ConstructorIsSingle: true, _Mode_ConstructorsAreAllNullary: true}
-        , options: Options {tagSingleConstructors: false, allNullaryToStringTag: true}
-        } -> case caseJsonArray Nothing (Just <<< decodeRepArgs) json of
-          Nothing -> Left (decodingErr ("Expected an empty array!"))
-          Just (Left errorMessage) -> Left (decodingErr errorMessage)
-          Just (Right {init: x, rest: _}) -> Right (Rep.Constructor x)
-            -- We know that `x ≡ Rep.NoArguments`,
-            -- but we cannot supply the value directly because the method is polymorphic.
+        { mode: Mode {_Mode_ConstructorIsSingle: true}
+        , options: Options {tagSingleConstructors: false}
+        } -> case caseJsonArray Nothing Just json of
+          Just [ ] -> Right (Rep.Constructor Rep.NoArguments)
+          _ -> Left "Expected an empty array!"
 
         { mode: Mode {_Mode_ConstructorsAreAllNullary: true}
         , options: Options {allNullaryToStringTag: true}
         } -> case caseJsonString Nothing Just json of
-          Nothing -> Left (decodingErr ("Expected a string!"))
+          Nothing -> Left "Expected a string!"
           Just tag -> if tag == name
-            then map (Rep.Constructor <<< (_.init)) (decodeRepArgs [ ])
-              -- We know that it should be `Rep.Constructor Rep.NoArguments`,
-              -- but we cannot supply the value directly because the method is polymorphic.
+            then Right (Rep.Constructor Rep.NoArguments)
             else Left "Mismatched constructor tag!"
+
+        _ -> decodeGeneralCase mode options json
+
+instance decodeAesonConstructorProduct' :: (IsSymbol name, DecodeRepArgs a, DecodeRepArgs b) => DecodeAeson' (Rep.Constructor name (Rep.Product a b)) where
+  decodeAeson' mode options json =
+    let name = reflectSymbol (SProxy :: SProxy name)
+    in lmap (decodingErr name) case {mode: mode, options: options} of
 
         { mode: Mode {_Mode_ConstructorIsSingle: true}
         , options: Options {tagSingleConstructors: false}
         } -> do
-            {init, rest} <- let values = toJsonArray json in lmap decodingErr $ decodeRepArgs values
-            pure $ Rep.Constructor init
+            {init, rest} <- (decodeRepArgs <<< caseJsonArray (singleton json) identity) json
+            pure (Rep.Constructor init)
 
         { options: Options {sumEncoding: TaggedObject taggedObject}
         } -> do
-          jObj <- note (decodingErr "expected an object") (toObject json)
-          jTag <- note (decodingErr (show taggedObject.tagFieldName <> " property is missing")) (SM.lookup taggedObject.tagFieldName jObj)
-          tag <- note (decodingErr (show taggedObject.tagFieldName <> " property is not a string")) (toString jTag)
-          when (tag /= name) $
-            Left $ decodingErr "'tag' property has an incorrect value"
-          {init, rest} <- case SM.lookup taggedObject.contentsFieldName jObj of
-            Just jValue ->
-              let values = toJsonArray jValue
-              in lmap decodingErr $ decodeRepArgs values
-            Nothing -> do
-              let jObj' = SM.delete taggedObject.tagFieldName jObj
-              lmap decodingErr $ decodeRepArgs $ singleton (fromObject jObj')
-          pure $ Rep.Constructor init
+          objectJson <- (note "expected an object" <<< toObject) json
+          checkTag taggedObject.tagFieldName name objectJson
+          {init, rest} <- case Foreign.lookup taggedObject.contentsFieldName objectJson of
+            Just contents -> -- This must be an ordinary constructor.
+              (decodeRepArgs <<< toJsonArrayProduct) contents
+            Nothing -> -- This must be a record constructor.
+              (decodeRepArgs <<< singleton <<< fromObject <<< Foreign.delete taggedObject.tagFieldName) objectJson
+          pure (Rep.Constructor init)
+
+instance decodeAesonConstructor' :: (IsSymbol name, DecodeRepArgs (Rep.Argument a)) => DecodeAeson' (Rep.Constructor name (Rep.Argument a)) where
+  decodeAeson' mode options json =
+    let name = reflectSymbol (SProxy :: SProxy name)
+    in lmap (decodingErr name) case {mode: mode, options: options} of
+
+        { mode: Mode {_Mode_ConstructorsAreAllNullary: true}
+        } -> unsafeCrashWith "Unreachable: cannot have all nullary constructors and an `Argument` constructor at once."
+
+        { mode: Mode {_Mode_ConstructorIsSingle: true}
+        , options: Options {tagSingleConstructors: false}
+        } -> do
+            {init, rest} <- (decodeRepArgs <<< caseJsonArray (singleton json) (singleton <<< fromArray)) json
+            pure (Rep.Constructor init)
+
+        _ -> decodeGeneralCase mode options json
+
+decodeGeneralCase :: forall name a. IsSymbol name => DecodeRepArgs a => Mode -> Options -> Json -> Either String (Rep.Constructor name a)
+decodeGeneralCase mode options json =
+  let name = reflectSymbol (SProxy :: SProxy name)
+  in case {mode: mode, options: options} of
+        { options: Options {sumEncoding: TaggedObject taggedObject}
+        } -> do
+          objectJson <- (note "expected an object" <<< toObject) json
+          checkTag taggedObject.tagFieldName name objectJson
+          {init, rest} <- case Foreign.lookup taggedObject.contentsFieldName objectJson of
+            Just contents -> -- This must be an ordinary constructor.
+              (decodeRepArgs <<< toJsonArray) contents
+            Nothing -> -- This must be a record constructor.
+              (decodeRepArgs <<< singleton <<< fromObject <<< Foreign.delete taggedObject.tagFieldName) objectJson
+          pure (Rep.Constructor init)
 
 -- | Decode `Json` Aeson representation of a value which has a `Generic` type.
 genericDecodeAeson :: forall a r. Rep.Generic a r => DecodeAeson r => Options -> Json -> Either String a
