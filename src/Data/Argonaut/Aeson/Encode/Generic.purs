@@ -26,7 +26,7 @@ import Foreign.Object as FO
 import Partial.Unsafe (unsafePartial)
 import Type.Proxy (Proxy(..))
 import Type.Row (class Cons)
-import Type.RowList (class RowToList, Nil, Cons, RLProxy(..), kind RowList)
+import Type.RowList (class RowToList, Nil, Cons, RLProxy(..), RowList)
     
 class EncodeAeson r where
   encodeAeson :: Options -> r -> Json
