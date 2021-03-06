@@ -11,7 +11,7 @@ import Data.Argonaut.Parser (jsonParser)
 import Data.Either (Either(..))
 import Data.Foldable (traverse_)
 import Data.Generic.Rep (class Generic)
-import Data.Generic.Rep.Show (genericShow)
+import Data.Show.Generic (genericShow)
 import Prelude (class Eq, class Show, Unit, discard, show, map, ($), (<>), (<<<), (<=<))
 import Test.Unit (suite, test, TestSuite)
 import Test.Unit.Assert as Assert
