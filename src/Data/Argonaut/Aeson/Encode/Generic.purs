@@ -152,9 +152,8 @@ instance encodeRepAesonArgsArgument :: EncodeJson a => EncodeRepArgs (Rep.Argume
   encodeRepArgs (Rep.Argument a) = Arg [encodeJson a]
 
 
-
 -- | Encode record fields 
-class EncodeRepFields (rs :: RowList) (row :: # Type) | rs -> row where
+class EncodeRepFields (rs :: RowList Type) (row :: # Type) | rs -> row where
   encodeFields :: RLProxy rs -> Record row -> (FO.Object Json)
 
 instance encodeRepFieldsCons ∷ ( IsSymbol name
