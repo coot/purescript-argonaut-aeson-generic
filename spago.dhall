@@ -1,19 +1,23 @@
-{-
-Welcome to a Spago project!
-You can edit this file as you like.
--}
-{ name =
-    "argonaut-aeson-generic"
+{ name = "argonaut-aeson-generic"
 , dependencies =
-    [ "argonaut"
-    , "argonaut-codecs"
-    , "argonaut-generic"
-    , "console"
-    , "effect"
-    , "foreign-object"
-    , "psci-support"
-    , "test-unit"
-    ]
-, packages =
-    ./packages.dhall
+  [ "argonaut-codecs"
+  , "argonaut-core"
+  , "argonaut-generic"
+  , "arrays"
+  , "bifunctors"
+  , "control"
+  , "effect"
+  , "either"
+  , "foldable-traversable"
+  , "foreign-object"
+  , "maybe"
+  , "partial"
+  , "prelude"
+  , "psci-support"
+  , "record"
+  , "test-unit"
+  , "typelevel-prelude"
+  ]
+, packages = ./packages.dhall
+, sources = [ "src/**/*.purs", "test/**/*.purs" ]
 }

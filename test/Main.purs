@@ -6,16 +6,24 @@ import Data.Argonaut.Aeson.Encode.Generic (genericEncodeAeson, class EncodeAeson
 import Data.Argonaut.Aeson.Options (Options(..), SumEncoding(..), defaultOptions)
 import Data.Argonaut.Decode.Class (class DecodeJson)
 import Data.Argonaut.Encode.Class (class EncodeJson)
+import Data.Argonaut.Decode.Error (JsonDecodeError(TypeMismatch), printJsonDecodeError)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Either (Either(..))
+import Data.Either (Either(..), either)
 import Data.Foldable (traverse_)
 import Data.Generic.Rep (class Generic)
-import Data.Generic.Rep.Show (genericShow)
+import Data.Show.Generic (genericShow)
 import Prelude (class Eq, class Show, Unit, discard, show, map, ($), (<>), (<<<), (<=<))
 import Test.Unit (suite, test, TestSuite)
 import Test.Unit.Assert as Assert
 import Test.Unit.Main (runTest)
+
+handleJsonDecodeError
+  :: forall a
+   . Either JsonDecodeError a
+  -> Either String a
+handleJsonDecodeError =
+  either (\l -> Left (printJsonDecodeError l)) (\r -> Right r)
 
 defaultOptionsWithTagSingleConstructorsAndNoAllNullaryToStringTag :: Options
 defaultOptionsWithTagSingleConstructorsAndNoAllNullaryToStringTag = Options
@@ -38,10 +46,14 @@ defaultOptionsWithTagSingleConstructors = Options
   , allNullaryToStringTag: true
   }
 
+wrapError :: forall r. Either String r -> Either JsonDecodeError r
+wrapError (Left e) = Left $ TypeMismatch e
+wrapError (Right r) = Right r
+
 checkAesonCompatibility :: forall a rep. Eq a => Show a => Generic a rep => DecodeAeson rep => a -> String -> Options -> TestSuite
 checkAesonCompatibility value canonicalEncoding options =
   test (show value <> " as " <> canonicalEncoding) do
-    let hopefullyDecodedValue = (genericDecodeAeson options <=< jsonParser) canonicalEncoding
+    let hopefullyDecodedValue = (genericDecodeAeson options <=< wrapError <<< jsonParser) canonicalEncoding
     Assert.equal (Right value) hopefullyDecodedValue
 
 checkManyWithOptions :: Options -> Array (Options -> TestSuite) -> TestSuite
@@ -50,7 +62,7 @@ checkManyWithOptions options testCaseConstructors = suite (show options) (traver
 checkInvertibility :: forall a rep. Eq a => Show a => Generic a rep => EncodeAeson rep => DecodeAeson rep => a -> Options -> TestSuite
 checkInvertibility value options =
   let encoding = (stringify <<< genericEncodeAeson options) value
-      hopefullyDecodedValue = (genericDecodeAeson options <=< jsonParser) encoding
+      hopefullyDecodedValue = (genericDecodeAeson options <=< wrapError <<< jsonParser) encoding
   in test (show value <> " as " <> encoding) do Assert.equal (Right value) hopefullyDecodedValue
 
 data SingleNullary = SingleNullary
