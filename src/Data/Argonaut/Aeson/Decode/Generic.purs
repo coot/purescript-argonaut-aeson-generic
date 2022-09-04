@@ -20,7 +20,7 @@ import Data.Either (Either(..), note)
 import Data.Generic.Rep as Rep
 import Data.Maybe (Maybe(..))
 import Foreign.Object as Foreign
-import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
+import Data.Symbol (class IsSymbol, reflectSymbol)
 import Type.Proxy (Proxy(..))
 import Partial.Unsafe
 
@@ -98,7 +98,7 @@ checkTag tagFieldName expectedTag
 
 instance decodeAesonConstructorNoArguments' :: IsSymbol name => DecodeAeson' (Rep.Constructor name (Rep.NoArguments)) where
   decodeAeson' mode options json =
-    let name = reflectSymbol (SProxy :: SProxy name)
+    let name = reflectSymbol (Proxy :: Proxy name)
     in lmap (decodingErr name) case {mode: mode, options: options} of
 
         { mode: Mode {_Mode_ConstructorIsSingle: true}
@@ -119,7 +119,7 @@ instance decodeAesonConstructorNoArguments' :: IsSymbol name => DecodeAeson' (Re
 
 instance decodeAesonConstructorProduct' :: (IsSymbol name, DecodeRepArgs a, DecodeRepArgs b) => DecodeAeson' (Rep.Constructor name (Rep.Product a b)) where
   decodeAeson' mode options json =
-    let name = reflectSymbol (SProxy :: SProxy name)
+    let name = reflectSymbol (Proxy :: Proxy name)
     in lmap (decodingErr name) case {mode: mode, options: options} of
 
         { mode: Mode {_Mode_ConstructorIsSingle: true}
@@ -141,7 +141,7 @@ instance decodeAesonConstructorProduct' :: (IsSymbol name, DecodeRepArgs a, Deco
 
 instance decodeAesonConstructor' :: (IsSymbol name, DecodeRepArgs (Rep.Argument a)) => DecodeAeson' (Rep.Constructor name (Rep.Argument a)) where
   decodeAeson' mode options json =
-    let name = reflectSymbol (SProxy :: SProxy name)
+    let name = reflectSymbol (Proxy :: Proxy name)
     in lmap (decodingErr name) case {mode: mode, options: options} of
 
         { mode: Mode {_Mode_ConstructorsAreAllNullary: true}
@@ -157,7 +157,7 @@ instance decodeAesonConstructor' :: (IsSymbol name, DecodeRepArgs (Rep.Argument 
 
 decodeGeneralCase :: forall name a. IsSymbol name => DecodeRepArgs a => Mode -> Options -> Json -> Either JsonDecodeError (Rep.Constructor name a)
 decodeGeneralCase mode options json =
-  let name = reflectSymbol (SProxy :: SProxy name)
+  let name = reflectSymbol (Proxy :: Proxy name)
   in case {mode: mode, options: options} of
         { options: Options {sumEncoding: TaggedObject taggedObject}
         } -> do
