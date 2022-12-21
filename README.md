@@ -1,8 +1,9 @@
 # Argonaut Aeson Generic Json Codecs
 
 [![Maintainer: coot](https://img.shields.io/badge/maintainer-coot-lightgrey.svg)](http://github.com/coot)
+[![Maintainer: peterbecich](https://img.shields.io/badge/maintainer-peterbecich-lightgrey.svg)](http://github.com/peterbecich)
 [![Documentation](https://pursuit.purescript.org/packages/purescript-argonaut-aeson-generic/badge)](https://pursuit.purescript.org/packages/purescript-argonaut-aeson-generic)
-[![Build Status](https://travis-ci.org/coot/purescript-argonaut-aeson-generic.svg?branch=master)](https://travis-ci.org/coot/purescript-argonaut-aeson-generic)
+[![CI](https://github.com/coot/purescript-argonaut-aeson-generic/actions/workflows/ci.yml/badge.svg)](https://github.com/coot/purescript-argonaut-aeson-generic/actions/workflows/ci.yml)
 
 Generic codec for aeson generic encoding. The promise is to support
 interoperation with [the generic encoding of Haskell's Aeson]. The default
