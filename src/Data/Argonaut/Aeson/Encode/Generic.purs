@@ -21,13 +21,13 @@ import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
 import Data.Array (cons, uncons, head, length, snoc)
 import Data.Generic.Rep as Rep
 import Data.Maybe (Maybe(..), fromJust)
-import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
+import Data.Symbol (class IsSymbol, reflectSymbol)
 import Foreign.Object as FO
 import Partial.Unsafe (unsafePartial)
 import Type.Proxy (Proxy(..))
 import Type.Row (class Cons)
-import Type.RowList (class RowToList, Nil, Cons, RLProxy(..), kind RowList)
-    
+import Type.RowList (Nil, Cons, RowList)
+
 class EncodeAeson r where
   encodeAeson :: Options -> r -> Json
 
@@ -99,7 +99,7 @@ instance semigroupRepArgsEncoding :: Semigroup RepArgsEncoding where
 
 instance encodeAesonConstructor' :: (IsSymbol name, EncodeRepArgs a) => EncodeAeson' (Rep.Constructor name a) where
   encodeAeson' mode options (Rep.Constructor arguments)  =
-    let name = reflectSymbol (SProxy :: SProxy name)
+    let name = reflectSymbol (Proxy :: Proxy name)
     in case {mode: mode, options: options} of
 
       { mode: Mode {_Mode_ConstructorIsSingle: true, _Mode_ConstructorsAreAllNullary: true}
@@ -122,7 +122,7 @@ instance encodeAesonConstructor' :: (IsSymbol name, EncodeRepArgs a) => EncodeAe
 
       {options: Options {sumEncoding: TaggedObject taggedObject}} ->
         let o :: FO.Object Json
-            o = FO.insert taggedObject.tagFieldName (fromString (reflectSymbol (SProxy :: SProxy name))) FO.empty
+            o = FO.insert taggedObject.tagFieldName (fromString (reflectSymbol (Proxy :: Proxy name))) FO.empty
         in fromObject case encodeRepArgs arguments of
               Rec o' -> o `FO.union` o'
               Arg js
@@ -142,38 +142,31 @@ instance encodeRepArgsNoArguments :: EncodeRepArgs Rep.NoArguments where
 instance encodeRepArgsProduct :: (EncodeRepArgs a, EncodeRepArgs b) => EncodeRepArgs (Rep.Product a b) where
   encodeRepArgs (Rep.Product a b) = encodeRepArgs a <> encodeRepArgs b
 
-instance encodeRepArgsRec :: (RowToList r rs, EncodeRepFields rs r) ⇒ EncodeRepArgs (Rep.Argument (Record r)) where
-  encodeRepArgs ( Rep.Argument fields ) =
-    Rec $ encodeFields (RLProxy ∷ RLProxy rs) fields
-
-else 
-
 instance encodeRepAesonArgsArgument :: EncodeJson a => EncodeRepArgs (Rep.Argument a) where
   encodeRepArgs (Rep.Argument a) = Arg [encodeJson a]
 
 
-
--- | Encode record fields 
-class EncodeRepFields (rs :: RowList) (row :: # Type) | rs -> row where
-  encodeFields :: RLProxy rs -> Record row -> (FO.Object Json)
+-- | Encode record fields
+class EncodeRepFields (rs :: RowList Type) (row :: Row Type) | rs -> row where
+  encodeFields :: Proxy rs -> Record row -> (FO.Object Json)
 
 instance encodeRepFieldsCons ∷ ( IsSymbol name
-                               , EncodeJson ty 
+                               , EncodeJson ty
                                , Cons name ty tailRow row
                                , EncodeRepFields tail row) ⇒ EncodeRepFields (Cons name ty tail) row where
-  encodeFields _ r = 
+  encodeFields _ r =
     let
-      name = reflectSymbol (SProxy ∷ SProxy name)
-      value = get (SProxy ∷ SProxy name) r
+      name = reflectSymbol (Proxy ∷ Proxy name)
+      value = get (Proxy ∷ Proxy name) r
 
       rest ∷ FO.Object Json
-      rest = encodeFields (RLProxy ∷ RLProxy tail) r
+      rest = encodeFields (Proxy ∷ Proxy tail) r
     in
      FO.insert name (encodeJson value) rest
 
 instance encodeRepFieldsNil ∷ EncodeRepFields Nil row where
   encodeFields _ _ = FO.empty
-  
+
 -- | Encode any `Generic` data structure into `Json` using `Aeson` encoding
 genericEncodeAeson :: forall a r. Rep.Generic a r => EncodeAeson r => Options -> a -> Json
 genericEncodeAeson o = encodeAeson o <<< Rep.from
