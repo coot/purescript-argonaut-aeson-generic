@@ -7,8 +7,8 @@
     "test": "test"
   },
   "scripts": {
-    "test": "pulp test",
-    "build": "pulp build"
+    "test": "spago test",
+    "build": "spago build"
   },
   "repository": {
     "type": "git",
@@ -28,6 +28,6 @@
   },
   "homepage": "https://github.com/coot/purescript-argonaut-aeson-generic#readme",
   "devDependencies": {
-    "pulp": "^12.0.1"
+    "spago": "1.0.5"
   }
 }
