@@ -25,7 +25,7 @@ jobs:
           spago: "1.0.5"
 
       - name: Cache PureScript dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           key: ${{ runner.os }}-spago-${{ hashFiles('spago.yaml') }}
           path: |
