@@ -9,3 +9,4 @@
 /.psa*
 /.spago
 yarn.lock
+/spago.lock
